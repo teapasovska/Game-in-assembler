@@ -1,0 +1,495 @@
+JMP main
+JMP isr
+vsync: DW 0            
+keydata: DW 0
+
+isr:                  ;the ISR to serve the graphics card interrupt requests 
+PUSH A                ;do not lose the value of register A
+IN 1                  ;which interrupt event occured?
+CMP A, 4              ;was it VSync?
+JNE isr_keyboard      ;if not, it had to be the keyboard
+MOV [vsync], 1        ;if yes, set the VSync flag
+MOV A, 4              ;VSync interrupt number
+OUT 2                 ;the VSync interrupt has been serviced
+JMP isr_return
+isr_keyboard:
+IN 5                  ;read the key event status
+AND A, 1              ;check the keydown bit
+CMP A, 1              ;if not set,
+JNE isr_key_clear     ;clear the key data but do not set the flag
+IN 6
+MOV [keydata], A      ;move in keydata
+isr_key_clear:
+IN 6                  ; Read the pressed key code to clear the status
+MOV A, 1              ; Keyboard interrupt number
+OUT 2                 ; The keyboard interrupt has been serviced
+isr_return:
+POP A                 ; Restore the original value of register A
+IRET
+;----------------------------------------------------------------------------------------------------------
+;parameter count is given through register C 
+wait_frames:                ;waits for count frames 
+wait_frames_loop:
+MOV A, [vsync]              ;check the current vsync value 
+CMP A, 0                    ;if still 0 ,
+JE wait_frames_loop         ;check it again 
+MOV [vsync], 0              ;reset the vsync signal
+DEC C                       ;count the received frame 
+CMP C, 0                    ;when enough frames passed
+JE wait_frames_return       ;return from the function 
+JMP wait_frames_loop        ;or, wait another frame 
+wait_frames_return:
+RET
+;----------------------------------------------------------------------------------------------------------
+;strings for the first page
+str1:
+DB "Welcome to\x00"
+str2:
+DB "choose  your\x00"
+str3:
+DB "flower color!\x00"
+str4:
+DB "Press:\x00"
+str5:
+DB "y for yellow\x00"
+str6:
+DB "p for pink\x00"
+str7:
+DB "l for lila\x00"
+str8:
+DB "g for green\x00" 
+
+string: DW 0
+cell: DW 0
+
+;function for writing the text
+front_page:
+MOV A, 1                    ;set up the text mode
+OUT 7                       ;through register VIDMODE 
+MOV A, 0xA300               ;background color information
+OUT 8                       ;in VRAM 
+MOV A, 0xFA                 ;color of the background 
+OUT 9                       ;set the background  
+MOV C, [string]             ;pointer to string 
+MOV D, [cell]               ;pointer to screen cells 
+loop_text:
+MOV A, D                    ;activate the screen cell
+OUT 8                       ;through register VIDADDR 
+MOVB AH, [C]                ;get a character 
+CMPB AH, 0                  ;the end of the string
+JE break                    ;if yes, break the loop 
+MOVB AL, 241                ;color of the string
+OUT 9                       ;display the character 
+INC C                       ;next character 
+ADD D, 2                    ;next screen cell 
+JMP loop_text
+break:
+RET
+
+;function that uses the function front_page, but here I insert the needed string and cell
+print_title:
+MOV [string], str1
+MOV [cell], 0x0206
+CALL front_page
+MOV [string], str2
+MOV [cell], 0x0304
+CALL front_page
+MOV [string], str3
+MOV [cell], 0x0404
+CALL front_page
+MOV [string], str4
+MOV [cell], 0x0A04
+CALL front_page
+MOV [string], str5
+MOV [cell], 0x0B04
+CALL front_page
+MOV [string], str6
+MOV [cell], 0x0C04
+CALL front_page
+MOV [string], str7
+MOV [cell], 0x0D04
+CALL front_page
+MOV [string], str8
+MOV [cell], 0x0E04
+CALL front_page
+RET
+;----------------------------------------------------------------------------------------------------------
+;deleting the strings
+delstr:
+DB "               \x00"
+dstring: DW 0
+dcell: DW 0
+
+;function for deleting the text
+dfront_page:
+MOV A, 1                    ;set up the text mode
+OUT 7                       ;through register VIDMODE 
+MOV A, 0xA300               ;bBackground color information
+OUT 8                       ;in VRAM 
+MOV A, 0xFA                 ;color of background 
+OUT 9                       ;set the background  
+MOV C, [dstring]            ;pointer to string 
+MOV D, [dcell]              ;pointer to screen cells 
+dloop_text:
+MOV A, D                    ;activate the screen cell
+OUT 8                       ;through register VIDADDR 
+MOVB AH, [C]                ;get a character 
+CMPB AH, 0                  ;the end of the string?
+JE dbreak                   ;if yes , break the loop 
+MOVB AL, 241                ;color of the string
+OUT 9                       ;display the character 
+INC C                       ;next character 
+ADD D, 2                    ;next screen cell 
+JMP dloop_text
+dbreak:
+RET
+
+;function that uses the function front_page, but here I insert the needed string and cell
+delete_title:
+MOV [dstring], delstr
+MOV [dcell], 0x0206
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0304
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0404
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0504
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0604
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0704
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0804
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0902
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0A04
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0B04
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0C04
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0D04
+CALL dfront_page
+MOV [dstring], delstr
+MOV [dcell], 0x0E04
+CALL dfront_page
+RET
+;----------------------------------------------------------------------------------------------------------
+;second display text
+text1: DB "or:\x00"
+text2: DB "move with\x00"
+text3: DB "w, a, s, d\x00"
+text4: DB "and hover the\x00"
+text5: DB "flowers to get\x00"
+text6: DB "their color.\x00"
+
+page2:
+MOV [s], text1
+MOV [textcell], 0x0504
+CALL string_gamepage
+MOV [s], text2
+MOV [textcell], 0x0604
+CALL string_gamepage
+MOV [s], text3
+MOV [textcell], 0x0704
+CALL string_gamepage
+MOV [s], text4
+MOV [textcell], 0x0804
+CALL string_gamepage
+MOV [s], text5
+MOV [textcell], 0x0904
+CALL string_gamepage
+MOV [s], text6
+MOV [textcell], 0x0A04
+CALL string_gamepage
+RET
+;----------------------------------------------------------------------------------------------------------
+;text that appear behind the objects
+str_1: DB " Choose your\x00"
+str_2: DB "flower color!\x00"
+s: DW 0
+textcell: DW 0
+
+;function that prints the text
+choose_your:
+MOV [s], str_1
+MOV [textcell], 0x0704
+CALL string_gamepage
+MOV [s], str_2
+MOV [textcell], 0x0804
+CALL string_gamepage
+RET
+string_gamepage:
+MOV C, [s]                      ;pointer to string 
+MOV D, [textcell]               ;pointer to text cell 
+str_loop:
+MOV A, D                        ;activate the current text cell
+OUT 8                           ;through I/O register VIDADDR 
+MOVB AH, [C]                    ;get the current character 
+CMPB AH, 0                      ;if at the end of the string,
+JE str_break                    ;break the loop 
+MOVB AL, 241                    ;set the color 
+OUT 9                           ;print the character 
+INC C                           ;next character 
+ADD D, 2                        ;next text cell 
+JMP str_loop
+str_break:
+RET
+;----------------------------------------------------------------------------------------------------------
+;function for changing the color of the objects and bringing it to the primary position
+color:
+MOV D, [keydata]
+CMP D, 121 ;'y'
+JE yellow1
+CMP D, 103 ; 'g'
+JE green1
+CMP D, 108 ; 'l'
+JE lila1
+CMP D, 112 ; 'p'
+JE pink1
+RET
+
+yellow1:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05FC
+OUT 9
+MOV A, 0xA308
+OUT 8
+MOV A, 0x7800
+OUT 9
+RET
+
+green1:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x0515
+OUT 9
+MOV A, 0xA308
+OUT 8
+MOV A, 0x7800
+OUT 9
+RET
+
+lila1:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05AA
+OUT 9
+MOV A, 0xA308
+OUT 8
+MOV A, 0x7800
+OUT 9
+RET
+
+pink1:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05F2
+OUT 9
+MOV A, 0xA308
+OUT 8
+MOV A, 0x7800
+OUT 9
+RET
+;----------------------------------------------------------------------------------------------------------
+hover:
+MOV A, 0xA308                       ;VRAM address of sprite 1 screen position 
+OUT 8                               ;activate the address 
+IN 9                                ;get the current sprite 1 screen position
+;comparing the current address of the sprite with the one of the flowers
+;first two num * 0x10 and switch to AH, second * 0x8 and goes to AL (from flowers)
+CMP A, 0x4020
+JE yellow
+CMP A, 0x30B0
+JE lila
+CMP A, 0x9050
+JE green
+CMP A, 0xC0A0
+JE pink
+CMP A, 0x90C0
+JE yellow
+CMP A, 0xE020
+JE lila
+CMP A, 0x60E0
+JE green
+CMP A, 0x1050
+JE pink
+RET
+
+;coloring the sprite
+yellow:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05FC
+OUT 9
+RET
+
+green:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x0515
+OUT 9
+RET
+
+lila:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05AA
+OUT 9
+RET
+
+pink:
+MOV A, 0xA306
+OUT 8
+MOV A, 0x05F2
+OUT 9
+RET
+;----------------------------------------------------------------------------------------------------------
+movement:
+MOV D, [keydata]
+CMP D, 97 ;'a'
+JE moveleft
+CMP D, 100 ; 'd'
+JE moveright
+CMP D, 115 ; 's'
+JE movedown
+CMP D, 119 ; 'w'
+JE moveup
+RET
+
+moveleft:
+MOV A, 0xA308                       ;VRAM address of sprite 1 screen position 
+OUT 8                               ;activate the address 
+IN 9                                ;get the current sprite 1 screen position 
+SUBB AH, 8                          
+OUT 9                               ;set the new sprite 1 screen position 
+RET
+
+moveright:
+MOV A, 0xA308                        
+OUT 8                                
+IN 9                                 
+ADDB AH, 8                          
+OUT 9                                
+RET
+
+moveup:
+MOV A, 0xA308                        
+OUT 8                                
+IN 9                                 
+SUBB AL, 8                          
+OUT 9                                
+RET
+
+movedown:
+MOV A, 0xA308                        
+OUT 8                                
+IN 9                                 
+ADDB AL, 8                           
+OUT 9                                
+RET
+;----------------------------------------------------------------------------------------------------------
+;displaying flowers
+flowers:
+MOV A, 0x0208
+OUT 8
+MOV A, 0x05FC ;yellow
+OUT 9
+
+MOV A, 0x0B06
+OUT 8
+MOV A, 0x05AA ;lila
+OUT 9
+
+MOV A, 0x0512
+OUT 8
+MOV A, 0x0515 ;green
+OUT 9
+
+MOV A, 0x0A18
+OUT 8
+MOV A, 0x05F2 ;pink
+OUT 9
+
+MOV A, 0x0C12
+OUT 8
+MOV A, 0x05FC ;yellow
+OUT 9
+
+MOV A, 0x021C
+OUT 8
+MOV A, 0x05AA ;lila
+OUT 9
+
+MOV A, 0x0E0C
+OUT 8
+MOV A, 0x0515 ;green
+OUT 9
+
+MOV A, 0x0502
+OUT 8
+MOV A, 0x05F2 ;pink
+OUT 9
+
+RET
+;----------------------------------------------------------------------------------------------------------
+display_objects:
+;display the object as sprite 
+MOV A, 0xA306                       ;VRAM address of sprite 
+OUT 8                               ;activate the address 
+MOV A, 0x05FF                       ;white flower shape 
+OUT 9                               ;set the sprite shape and color 
+;set the initial sprite position 
+MOV A, 0xA308                       ;VRAM address of sprite's screen position 
+OUT 8                               ;activate the address 
+MOV A, 0x7800                       ;initial position 
+OUT 9                               ;set the sprite position 
+RET
+;----------------------------------------------------------------------------------------------------------
+main:
+MOV SP, 0x0FFF                      ;initialize the stack pointer 
+;set up the graphics screen 
+MOV A, 1                            ;set the graphics card to TEXT mode
+OUT 7                               ;through register VIDMODE 
+;enable graphics card interrupts
+MOV A, 5                            ;mask the graphics card interrupts 
+OUT 0                               ;enable the graphics card interrupts 
+STI                                 ;enable interrupts globally
+
+CALL print_title                    ;print the string
+MOV C, 100                          ;wait 3s
+CALL wait_frames 
+CALL delete_title                   ;deleting first strings
+CALL page2                          ;print other text
+MOV C, 100                          ;wait 3s
+CALL wait_frames
+CALL delete_title 
+CALL display_objects                ;next screen
+CALL choose_your                    ;print the text in the middle
+CALL flowers                        ;draw the flowers
+
+loop:
+MOV A, 0xA308                       ;VRAM address of sprite 1 screen position 
+OUT 8                               ;activate the address 
+IN 9                                ;get the current sprite 1 screen position
+
+CALL color                          ;changing color on keypress
+CALL movement                       ;movement of the sprite
+CALL hover                          ;change color when hover
+MOV C, 5                            ;speed of the movement  
+CALL wait_frames                     
+JMP loop                            ;repeat for the next frame 
+HLT
